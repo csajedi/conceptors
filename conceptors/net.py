@@ -44,15 +44,15 @@ class ConceptorNetwork:
     @param washout_length: length of wash-out iteration
     @param learn_length: length of learning iteration
     @param signal_plot_length: length of plot length
-    @param tychnonv_alpha_readout: Tychonov regularization parameter
+    @param tychnonv_alpha_readout: Tychonov regularization parameter -- 也就是ridge regression种的常数
     """
     
     # document parameters
-    self.num_in=num_in;
-    self.num_neuron=num_neuron;
-    self.num_pattern=0;
-    self.sr=sr;
-    self.in_scale=in_scale;
+    self.num_in=num_in;   # N 
+    self.num_neuron=num_neuron; 
+    self.num_pattern=0;   # pattern的总个数
+    self.sr=sr;           # spectral radius ? 
+    self.in_scale=in_scale;  
     self.bias_scale=bias_scale;
     self.learn_length=learn_length;
     self.washout_length=washout_length;
@@ -66,11 +66,12 @@ class ConceptorNetwork:
                                                       sr,
                                                       in_scale,
                                                       bias_scale);
+    # 初始化W*, W_in, b (b = W_bias?)
                                                                      
     self.W_star=W_star;
     self.W_in=W_in;
     self.W_bias=W_bias;
-    self.W_out=np.asarray([]);
+    self.W_out=np.asarray([]); # asarray: convert input to array
     self.W_targets=np.asarray([]);
     self.W=np.asarray([]);
                                                                      
@@ -96,6 +97,7 @@ class ConceptorNetwork:
     self.startXs=np.asarray([]);
     
     self.Cs=[]; self.Cs.append([]); self.Cs.append([]); self.Cs.append([]); self.Cs.append([]);
+    # Cs 应该是4个C，代表4个conceptor
     
   def drive_class(self,
                   patterns):
@@ -103,7 +105,7 @@ class ConceptorNetwork:
     @param patterns: Class of patterns
     """
     
-    x=np.random.rand(self.num_neuron, 1);
+    x=np.random.rand(self.num_neuron, 1); # x = n * 1矩阵，
      
     hid_states=np.array([]);
     for i in xrange(patterns.shape[1]):
@@ -135,17 +137,20 @@ class ConceptorNetwork:
     @param norm_size: norm size for R_orther_norm;
     """
     
-    R=train_states.dot(train_states.T);
-    R_norm=R/float(train_states.shape[1]);
-    R_other=R_all-R;
-    R_other_norm=R_other/(float(norm_size));
+    R=train_states.dot(train_states.T);   
+    R_norm=R/float(train_states.shape[1]); # R = XX' / L
+    R_other=R_all-R; # R_all - R 
+    R_other_norm=R_other/(float(norm_size));  # 大小规范化
     
     C_pos_class=[];
     C_neg_class=[];
     
     for ap_i in xrange(ap_N):
+      # alpha = 2^i 
       C_pos_class.append(R_norm.dot(np.linalg.inv(R_norm+(2**float(ap_i))**(-2)*self.I)));
+      # C_pos = R * (R + (2^i)^-2 * I)-1
       C_other=R_other_norm.dot(np.linalg.inv(R_other_norm+(2**float(ap_i))**(-2)*self.I));
+      # C_oth = I - R_o * (R_o + (2^i)^-2 * I)-1
       C_neg_class.append(self.I-C_other);
       
     return C_pos_class, C_neg_class, R, R_other;
@@ -162,6 +167,7 @@ class ConceptorNetwork:
     
     norm_pos=np.zeros(ap_N);
     norm_neg=np.zeros(ap_N);
+    
     for ap_i in xrange(ap_N):
       norm_pos[ap_i]=np.linalg.norm(C_pos_class[ap_i], 'fro')**2;
       norm_neg[ap_i]=np.linalg.norm(self.I-C_neg_class[ap_i], 'fro')**2;
@@ -185,6 +191,7 @@ class ConceptorNetwork:
     best_aps_neg=2**x_new[max_ind_neg];
     
     return best_aps_pos, best_aps_neg;
+    # （应该是选出最好的aperture用？）
   
   def compute_best_conceptor(self,
                              R,
@@ -199,8 +206,9 @@ class ConceptorNetwork:
     c_pos_best=R_norm.dot(np.linalg.inv(R_norm + best_ap_pos ** (-2) * self.I));
     C_other=R_other_norm.dot(np.linalg.inv(R_other_norm + best_ap_neg ** (-2) * self.I));
     c_neg_best=self.I-C_other;
-      
+         
     return c_pos_best, c_neg_best;
+    # 根据上一步compute_aperture，选出最好的conceptor参数（R是确定的，选出最好的alpha就可以）
   
   def compute_pos_conceptor(self,
                             R,
@@ -210,42 +218,50 @@ class ConceptorNetwork:
     c_pos=R_norm.dot(np.linalg.inv(R_norm + ap_pos ** (-2) * self.I));
     
     return c_pos;
+    # 根据某个ap_pos（alpha），计算C(R / norm_size, ap_pos); 
       
   def train_pattern(self,
                     pattern):
     """
     This function train one single input pattern.
-    
+    训练input pattern，对单一信号，训练出output pattern出来    
     @param pattern: input pattern
     """
     
-    x_collector=np.zeros((self.num_neuron, self.learn_length));
-    x_old_collector=np.zeros((self.num_neuron, self.learn_length));
-    p_collector=np.zeros((self.num_in, self.learn_length));
-    x=np.zeros((self.num_neuron, 1));
+    x_collector=np.zeros((self.num_neuron, self.learn_length)); # 矩阵X
+    x_old_collector=np.zeros((self.num_neuron, self.learn_length)); # 矩阵X~
+    p_collector=np.zeros((self.num_in, self.learn_length));         # 矩阵P
+    x=np.zeros((self.num_neuron, 1));  # x，当前神经元状态
     
     for n in xrange(self.washout_length+self.learn_length):
-      u=pattern[:,n][None].T;
-      x_old=x;
-      x=np.tanh(self.W_star.dot(x)+self.W_in.dot(u)+self.W_bias);
-      if n>self.washout_length-1:
-        x_collector[:, n-self.washout_length]=x[:,0];
-        x_old_collector[:, n-self.washout_length]=x_old[:,0];
-        p_collector[:, n-self.washout_length]=u[:,0];
+      u=pattern[:,n][None].T;       # u = 第n时间的 pattern 
+      x_old=x;                      # x_old
+      x=np.tanh(self.W_star.dot(x)+self.W_in.dot(u)+self.W_bias);  # x(n) = tanh(W* x + Win * u + b)
+      if n>self.washout_length-1:  
+        x_collector[:, n-self.washout_length]=x[:,0];              # X = [...]
+        x_old_collector[:, n-self.washout_length]=x_old[:,0];      # X~ = [...]       
+        p_collector[:, n-self.washout_length]=u[:,0];              # P = [...]
     
     x_collector_centered=x_collector-numpy.matlib.repmat(np.mean(x_collector, 1), self.learn_length, 1).T;
+    # 把 X 减掉（按行（time-wise）平均值），把 X 的平均值收缩到 0 ，用来求R
     # document centered collectors and collectors
     self.x_collectors_centered.append(x_collector_centered);
     self.x_collectors.append(x_collector);
     
     # document eigen vectors and eigen values 
     R=x_collector.dot(x_collector.T)/self.learn_length;
+    # R = X*XT / L
     Ux, Sx, _=numpy.linalg.svd(R);
+    # U S U' = SVD(R)
+
     self.sr_collectors.append(Sx);
     self.ur_collectors.append(Ux);
     self.pattern_rs.append(R);
     
     self.compute_projector(R);
+    # 计算projector, 就是计算conceptor
+    # conceptor = C(R, alpha)
+    # default alpha = 10
     
     if not self.startXs.size:
       self.startXs=x[:,0];
@@ -289,9 +305,11 @@ class ConceptorNetwork:
     """
     for i in xrange(len(patterns)):
       self.train_pattern(patterns[i]);
+      # train all patterns
     
     self.compute_weights(self.tychonov_alpha_readout,
                          self.tychonov_alpha_readout_w);
+    # integrate patterns into matrix W                    
     
   def compute_weights(self,
                       tychonov_alpha_readout=0.01,
@@ -311,6 +329,9 @@ class ConceptorNetwork:
     """
     
     self.W_out=np.linalg.inv(self.all_train_args.dot(self.all_train_args.T)+tychonov_alpha_readout*np.eye(self.num_neuron)).dot(self.all_train_args).dot(self.all_train_outs.T).T;
+    # See section 4.1
+    # W_out = argmin Σ(y - x)^2
+    # W_out = ((XX' + r-out I)^-1 X P')' 
     
   def compute_W(self,
                 tychonov_alpha_readout_w=0.0001):
@@ -339,6 +360,8 @@ class ConceptorNetwork:
       x=np.tanh(self.W.dot(x)+self.W_bias);
       y=self.W_out.dot(x);
       messy_out_pl[:,n]=y[:,0];
+      # recall the loaded reservoir without using any Conceptor
+      # just run for test-length and x will converge to a vector and V depends on W, W_b, W_out
       
     return messy_out_pl;
     
@@ -356,11 +379,17 @@ class ConceptorNetwork:
     S_new=(np.diag(S).dot(np.linalg.inv(np.diag(S)+alpha**(-2)*np.eye(self.num_neuron))))
         
     C=U.dot(S_new).dot(U.T);
+    # calculate conceptor
+    # C = U * (S*) * U'
+    # S* = Σ/(Σ+α^-2)
+    # equivalent to C = R(R+a^-2 I)^-1
     
     self.Cs[0].append(C);
     self.Cs[1].append(U);
     self.Cs[2].append(np.diag(S_new));
     self.Cs[3].append(S);
+    # a conceptor contains C, U, S, S*
+    # R can be recovered from C, by R = a^-2 (I-C)^-1 C
     
     
 class Autoconceptor:
