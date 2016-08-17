@@ -26,6 +26,7 @@ def gen_internal_weights(num_neuron,
   return weights.toarray();
 
 def init_weights(num_in,
+                 num_out,
                  num_neuron,
                  sr,
                  in_scale,
@@ -34,6 +35,7 @@ def init_weights(num_in,
   Initialize weights for a new conceptor network
   
   @param num_in: number of input
+  @param num_in: number of output
   @param num_neuron: number of internal neurons 
   @param sr: spectral radius
   @param in_scale: scaling of pattern feeding weights
@@ -52,7 +54,7 @@ def init_weights(num_in,
   W_in=np.random.rand(num_neuron, num_in)*in_scale;
   
   # generate bias
-  W_bias=np.random.rand(num_neuron,1)*bias_scale;
+  W_bias=np.random.rand(num_neuron, 1)*bias_scale;
     
   return W_star, W_in, W_bias;
 

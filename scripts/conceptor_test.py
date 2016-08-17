@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 @author: Yuhuang Hu
 @note: some general test cases
@@ -12,12 +14,12 @@ from conceptors.dataset import read_jpv_data;
 from conceptors.dataset import normalize_jap_data;
 from conceptors.dataset import transform_jap_data;
 
-train_inputs, train_outputs, test_inputs, test_outputs=read_jpv_data("/home/arlmaster/workspace/conceptors/conceptors/data/ae.train",
-                                                                     "/home/arlmaster/workspace/conceptors/conceptors/data/ae.test");
+#train_inputs, train_outputs, test_inputs, test_outputs=read_jpv_data("/home/arlmaster/workspace/conceptors/conceptors/data/ae.train",
+#                                                                     "/home/arlmaster/workspace/conceptors/conceptors/data/ae.test");
                                                                      
                                                                      
-train_data, shifts, scales=normalize_jap_data(train_inputs);
-test_data=transform_jap_data(test_inputs, shifts, scales);
+#train_data, shifts, scales=normalize_jap_data(train_inputs);
+#test_data=transform_jap_data(test_inputs, shifts, scales);
 
 
 
